@@ -7,7 +7,16 @@ namespace Unity.FPS.UI
 {
     public class LoadSceneButton : MonoBehaviour
     {
-        public string SceneName = "";
+        string SceneName = "";
+        bool Silly = false;
+
+        public void ToggleSilly()
+        {
+            if (Silly)
+                Silly = false;
+            else
+                Silly = true;
+        }
 
         void Update()
         {
@@ -20,6 +29,16 @@ namespace Unity.FPS.UI
 
         public void LoadTargetScene()
         {
+            switch (Silly)
+            {
+                case false:
+                    SceneName = "MainScene";
+                    break;
+                case true:
+                    SceneName = "SecondaryScene";
+                    break;
+            }
+
             SceneManager.LoadScene(SceneName);
         }
     }
