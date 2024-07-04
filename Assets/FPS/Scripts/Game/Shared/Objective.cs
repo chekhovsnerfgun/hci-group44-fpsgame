@@ -1,62 +1,64 @@
-﻿using System;
 using UnityEngine;
+using System;
 
 namespace Unity.FPS.Game
 {
-    public abstract class Objective : MonoBehaviour
+    public class Objective : MonoBehaviour
     {
-        [Tooltip("Name of the objective that will be shown on screen")]
-        public string Title;
+        // action delegates that can be used to listen for state changes to update things like UI and objective manager
+        public Action OnCreate; // invoked on creation
+        public Action OnComplete; // invoked on completion
+        public Action OnValueChange; // invoked on progress change
 
-        [Tooltip("Short text explaining the objective that will be shown on screen")]
-        public string Description;
+        public string EventTrigger { get; } // triggers progress (can be empty if progress is managed elsewhere)
+        public bool IsComplete { get; private set; }
+        public int MaxValue { get; }
+        public int CurrentValue { get; private set; }
 
-        [Tooltip("Whether the objective is required to win or not")]
-        public bool IsOptional;
+        // used for basic formatting to display objective to player
+        // uses string.Format() to provide CurrentValue and MaxValue as format parameters, e.g. "Kill {0} of {1} enemies"
+        private readonly string _statusText;
 
-        [Tooltip("Delay before the objective becomes visible")]
-        public float DelayVisible;
-
-        public bool IsCompleted { get; private set; }
-        public bool IsBlocking() => !(IsOptional || IsCompleted);
-
-        public static event Action<Objective> OnObjectiveCreated;
-        public static event Action<Objective> OnObjectiveCompleted;
-
-        protected virtual void Start()
+        public Objective(string eventTrigger, string statusText, int maxValue)
         {
-            OnObjectiveCreated?.Invoke(this);
-
-            DisplayMessageEvent displayMessage = Events.DisplayMessageEvent;
-            displayMessage.Message = Title;
-            displayMessage.DelayBeforeDisplay = 0.0f;
-            EventManager.Broadcast(displayMessage);
+            EventTrigger = eventTrigger;
+            _statusText = statusText;
+            MaxValue = maxValue;
+            OnCreate?.Invoke();
         }
 
-        public void UpdateObjective(string descriptionText, string counterText, string notificationText)
+        public Objective(string statusText, int maxValue) : this("", statusText, maxValue) {}
+
+        private void CheckCompletion()
         {
-            ObjectiveUpdateEvent evt = Events.ObjectiveUpdateEvent;
-            evt.Objective = this;
-            evt.DescriptionText = descriptionText;
-            evt.CounterText = counterText;
-            evt.NotificationText = notificationText;
-            evt.IsComplete = IsCompleted;
-            EventManager.Broadcast(evt);
+            if (CurrentValue >= MaxValue)
+            {
+                IsComplete = true;
+                OnComplete?.Invoke();
+            }
         }
 
-        public void CompleteObjective(string descriptionText, string counterText, string notificationText)
+        public void AddProgress(int value)
         {
-            IsCompleted = true;
+            if (IsComplete)
+            {
+                return;
+            }
 
-            ObjectiveUpdateEvent evt = Events.ObjectiveUpdateEvent;
-            evt.Objective = this;
-            evt.DescriptionText = descriptionText;
-            evt.CounterText = counterText;
-            evt.NotificationText = notificationText;
-            evt.IsComplete = IsCompleted;
-            EventManager.Broadcast(evt);
+            CurrentValue += value;
 
-            OnObjectiveCompleted?.Invoke(this);
+            if (CurrentValue > MaxValue)
+            {
+                CurrentValue = MaxValue;
+            }
+
+            OnValueChange?.Invoke();
+            CheckCompletion();
+        }
+
+        public string GetStatusText()
+        {
+            return string.Format(_statusText, CurrentValue, MaxValue);
         }
     }
 }
