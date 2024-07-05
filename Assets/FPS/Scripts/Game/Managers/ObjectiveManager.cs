@@ -1,42 +1,60 @@
-﻿using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
+using System;
+using System.Collections.Generic;
 
 namespace Unity.FPS.Game
 {
-    public class ObjectiveManager : MonoBehaviour
+    public class ObjectivesManager : MonoBehaviour
     {
-        List<Objective> m_Objectives = new List<Objective>();
-        bool m_ObjectivesCompleted = false;
+        public Action<Objective> OnObjectiveAdded;
 
-        void Awake()
+        public List<Objective> Objectives { get; } = new();
+        public static ObjectivesManager Instance { get; private set; }
+        private readonly Dictionary<string, List<Objective>> _objectiveMap = new();
+
+        private void Awake()
         {
-            Objective.OnObjectiveCreated += RegisterObjective;
+            Instance = this;
         }
 
-        void RegisterObjective(Objective objective) => m_Objectives.Add(objective);
-
-        void Update()
+        public void AddObjective(Objective objective)
         {
-            if (m_Objectives.Count == 0 || m_ObjectivesCompleted)
-                return;
+            /*
+              Adds an objective to the objective manager. 
+              If the objective has an EventTrigger, its progress will be incremented by
+              AddProgress when the event is triggered. Multiple objectives can have the
+              same EventTrigger (i.e. MobKilled, ItemCollected, etc).
+            */ 
 
-            for (int i = 0; i < m_Objectives.Count; i++)
+            Objectives.Add(objective);
+
+            if (!string.IsNullOrEmpty(objective.EventTrigger))
             {
-                // pass every objectives to check if they have been completed
-                if (m_Objectives[i].IsBlocking())
+                if (!_objectiveMap.ContainsKey(objective.EventTrigger))
                 {
-                    // break the loop as soon as we find one uncompleted objective
-                    return;
+                    _objectiveMap.Add(objective.EventTrigger, new List<Objective>());
                 }
+
+                _objectiveMap[objective.EventTrigger].Add(objective);
             }
 
-            m_ObjectivesCompleted = true;
-            EventManager.Broadcast(Events.AllObjectivesCompletedEvent);
+            OnObjectiveAdded?.Invoke(objective);
         }
-
-        void OnDestroy()
+        
+        public void AddProgress(string eventTrigger, int value)
         {
-            Objective.OnObjectiveCreated -= RegisterObjective;
+            /*
+              Updates progress based on event triggers.
+            */
+
+            if (!_objectiveMap.ContainsKey(eventTrigger)) 
+            {
+                return;
+            }
+            foreach (var objective in _objectiveMap[eventTrigger])
+            {
+                objective.AddProgress(value);
+            }
         }
     }
 }
